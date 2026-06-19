@@ -177,6 +177,13 @@
 (function(){
   "use strict";
   var SAVE="kelimatiko_v1";
+  // === Global liderlik (Supabase) ===
+  var SB_URL="https://imevemtssomjldgfiwug.supabase.co";
+  var SB_KEY="sb_publishable_3v3h-QSfdwJST3qZFw9NaA_dorkmnkA";
+  var SB_ON=(SB_URL.indexOf("SENIN_PROJEN")<0)&&(SB_KEY.indexOf("SENIN_ANON")<0);
+  function sbHead(extra){var h={apikey:SB_KEY,Authorization:"Bearer "+SB_KEY,"Content-Type":"application/json"};if(extra)for(var k in extra)h[k]=extra[k];return h;}
+  function sbSubmit(name,score){if(!SB_ON)return;try{fetch(SB_URL+"/rest/v1/scores",{method:"POST",headers:sbHead({Prefer:"return=minimal"}),body:JSON.stringify({name:name,score:score})}).catch(function(){});}catch(e){}}
+  function sbTop(cb){if(!SB_ON){cb(null);return;}try{fetch(SB_URL+"/rest/v1/scores?select=name,score&order=score.desc&limit=20",{headers:sbHead()}).then(function(r){return r.json();}).then(function(d){cb(Array.isArray(d)?d:null);}).catch(function(){cb(null);});}catch(e){cb(null);}}
   // ===== KELİME BANKASI (elle, kategorili, temiz ipuçlu) =====
   var BANK=[
  {w:"balık",c:"Suda yaşayan, solungaçla soluyan canlı",k:"Hayvanlar",d:2},
@@ -2431,8 +2438,21 @@
 
   // ===== leaderboard & name =====
   function escapeHtml(s){return (s+"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
-  function recordLeaderboard(score){if(!ST.lb)ST.lb=LB_SEED.slice();var nm=ST.name||"Oyuncu",f=null;for(var i=0;i<ST.lb.length;i++)if(ST.lb[i].me)f=ST.lb[i];if(f){f.name=nm;if(score>f.score)f.score=score;}else ST.lb.push({name:nm,score:score,me:true});ST.lb.sort(function(a,b){return b.score-a.score;});saveST();}
-  function showLeaderboard(){var rows=(ST.lb||[]).slice(0,12).map(function(e,i){return '<div class="lbrow'+(e.me?' me':'')+'"><span>'+(i+1)+'</span><span class="nm">'+(e.me?'⭐ ':'')+escapeHtml(e.name)+'</span><span>'+e.score+'</span></div>';}).join("");overlay('<h2>🏆 Liderlik</h2><div class="lbtable">'+rows+'</div><div class="rows" style="font-size:11px">Şimdilik cihazına özel · yayında global olacak</div><button id="ovHome">Kapat</button>');$("ovHome").onclick=closeOverlay;}
+  function recordLeaderboard(score){if(!ST.lb)ST.lb=LB_SEED.slice();var nm=ST.name||"Oyuncu",f=null;for(var i=0;i<ST.lb.length;i++)if(ST.lb[i].me)f=ST.lb[i];if(f){f.name=nm;if(score>f.score)f.score=score;}else ST.lb.push({name:nm,score:score,me:true});ST.lb.sort(function(a,b){return b.score-a.score;});saveST();sbSubmit(nm,score);}
+  function renderLbRows(list,meName){return list.slice(0,15).map(function(e,i){var me=e.me||(meName&&e.name===meName);return '<div class="lbrow'+(me?' me':'')+'"><span>'+(i+1)+'</span><span class="nm">'+(me?'⭐ ':'')+escapeHtml(e.name)+'</span><span>'+e.score+'</span></div>';}).join("");}
+  function showLeaderboard(){
+    if(SB_ON){
+      overlay('<h2>🏆 Liderlik</h2><div class="lbtable" id="lbBody"><div class="rows">Yükleniyor…</div></div><div class="rows" style="font-size:11px">🌍 Global liderlik</div><button id="ovHome">Kapat</button>');
+      $("ovHome").onclick=closeOverlay;
+      sbTop(function(data){var b=$("lbBody");if(!b)return;
+        if(!data){b.innerHTML=renderLbRows(ST.lb||[],null)+'<div class="rows" style="font-size:11px">(bağlantı yok — yerel)</div>';return;}
+        if(!data.length){b.innerHTML='<div class="rows">Henüz skor yok — ilk sen ol! 🚀</div>';return;}
+        b.innerHTML=renderLbRows(data,ST.name||"");});
+    }else{
+      overlay('<h2>🏆 Liderlik</h2><div class="lbtable">'+renderLbRows(ST.lb||[],null)+'</div><div class="rows" style="font-size:11px">Şimdilik cihazına özel · yayında global olacak</div><button id="ovHome">Kapat</button>');
+      $("ovHome").onclick=closeOverlay;
+    }
+  }
   function askName(cb){overlay('<h2>Adın ne?</h2><div class="rows">Liderlik tablosunda görünecek.</div><input id="nameInput" maxlength="12" placeholder="Adın"/><button id="nameOk">Tamam</button>');var inp=$("nameInput");inp.value=ST.name||"";setTimeout(function(){try{inp.focus();}catch(e){}},120);$("nameOk").onclick=function(){var v=(inp.value||"").trim().slice(0,12)||"Oyuncu";ST.name=v;saveST();renderNameBar();updHome();closeOverlay();if(cb)cb();};}
   function renderNameBar(){$("nameBar").innerHTML="👤 <b>"+escapeHtml(ST.name||"Oyuncu")+"</b> · adı değiştir";}
   $("lbBtn").onclick=function(){showLeaderboard();};
